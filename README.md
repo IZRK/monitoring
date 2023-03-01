@@ -1,6 +1,6 @@
-# IZRK services monitoring (izrk-monitoring)
+# IZRK monitoring (monitoring)
 
-A Quasar Project
+Check if everything on IZRK servers is A-OK!
 
 ## Install the dependencies
 ```bash
@@ -22,10 +22,12 @@ yarn lint
 npm run lint
 ```
 
+
+
 ### Build the app for production
 ```bash
 quasar build
 ```
 
 ### Customize the configuration
-See [Configuring quasar.conf.js](https://v1.quasar.dev/quasar-cli/quasar-conf-js).
+See [Configuring quasar.config.js](https://v2.quasar.dev/quasar-cli-vite/quasar-config-js).
