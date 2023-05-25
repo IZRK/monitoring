@@ -1,1 +1,16 @@
-// app global css in SCSS form
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Kreon:wght@500;700&family=Open+Sans&display=swap');
+
+body, html {
+  font-family: 'Open Sans', sans-serif;
+}
+
+.kreon {
+  font-family: 'Kreon', serif;
+}
+
+.logo {
+  width: 32px;
+  height: 32px;
+  margin-right: 10px;
+}
