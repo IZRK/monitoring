@@ -1,11 +1,11 @@
 <template>
-  <q-page v-if="conf" class="q-ma-md">
+  <q-page v-if="conf && status" class="q-ma-md">
     <div class="text-h4 kreon q-py-md">
       Server status
     </div>
     <div class="row q-col-gutter-md">
       <div v-for="(srv, name) in conf.servers" :key="name" class="col-lg-4 col-12">
-        <q-card>
+        <q-card class="overflow-hidden">
           <q-card-section :class="status[srv.hostname]?.ping?.val == 'up' ? 'bg-primary text-white' : 'bg-negative'">
             <div class="row text-h6 ">
               {{name}} ({{srv.hostname}})
@@ -20,7 +20,7 @@
             </div>
             <q-list>
               <q-item v-for="(virt, vm) in srv.virt" :key="vm" :class="status[virt.hostname]?.ping?.val == 'up' ? 'bg-positive' : 'bg-negative'">
-                <q-item-section>{{vm}}</q-item-section>
+                <q-item-section class="overflow-hidden">{{vm}}</q-item-section>
                 <q-item-section avatar>
                   <q-icon name="flag_circle" v-if="status[vm]?.autostart?.val == 'enable'">
                     <q-tooltip>Virtual machine is set to autostart</q-tooltip>
@@ -46,9 +46,36 @@
             </div>
             <q-list>
               <q-item v-for="site in srv.web" :key="site" :class="status[site]?.web?.val == 'up' ? 'bg-positive' : 'bg-negative'">
-                <q-item-section>{{site}}</q-item-section>
+                <q-item-section class="overflow-hidden">{{site}}</q-item-section>
+                <q-item-section avatar>
+                  <q-icon name="check" v-if="status[site]?.web?.val == 'up'">
+                    <q-tooltip>Website is up</q-tooltip>
+                  </q-icon>
+                  <q-icon name="cancel" color="warning" v-else>
+                    <q-tooltip>Website is down!</q-tooltip>
+                  </q-icon>
+                </q-item-section>
               </q-item>
             </q-list>
+          </q-card-section>
+        </q-card>
+      </div>
+    </div>
+    <div class="text-h4 kreon q-py-md">
+      Seismological stations
+    </div>
+    <div class="row q-col-gutter-md">
+      <div v-for="(folder, seismo) in conf.seismo" :key="seismo" class="col-lg-4 col-12">
+        <q-card class="overflow-hidden">
+          <q-card-section :class="status[seismo]?.seismo?.val == 'up' ? 'bg-primary text-white' : 'bg-negative'">
+            <div class="row text-h6 ">
+              {{seismo}} ({{folder}})
+              <q-space />
+              <q-icon :name="status[seismo]?.seismo?.val == 'up' ? 'check' : 'cancel'" />
+            </div>
+          </q-card-section>
+          <q-card-section style="letter-spacing: -3px;font-size:20px">
+            <span v-for="day in daysInYear" :key="day" :class="{future: day > dayOfYear, 'text-positive': containsDay(seismo, day), 'text-negative': !containsDay(seismo, day)}">■ </span>
           </q-card-section>
         </q-card>
       </div>
@@ -61,6 +88,12 @@
     </div>
     <apexchart height="350" type="line" :options="chartOptions" :series="[{ name: 'Temperature', data: temps.map(t => [new Date(t.datetime).getTime(), t.avgTemp]) }]" />
   </q-page>
+  <q-page v-else class="flex flex-center">
+    <q-spinner-grid
+      color="primary"
+      size="10em"
+    />
+  </q-page>
 </template>
 
 <script>
@@ -69,7 +102,7 @@ export default {
   data: () => ({
     intv: false,
     conf: null,
-    status: {},
+    status: null,
     temps: [],
     chartOptions: {
       chart: {
@@ -91,6 +124,24 @@ export default {
   beforeUnmount () {
     clearInterval(this.intv)
   },
+  computed: {
+    dayOfYear () {
+      const date = new Date()
+      const start = new Date(date.getFullYear(), 0, 0)
+      const diff = date - start
+      const oneDay = 1000 * 60 * 60 * 24
+      const dayOfYear = Math.floor(diff / oneDay)
+      return dayOfYear
+    },
+    daysInYear () {
+      const currentDate = new Date()
+      const currentYear = currentDate.getFullYear()
+      const isLeapYear = ((currentYear % 4 === 0) && (currentYear % 100 !== 0)) || (currentYear % 400 === 0)
+      const daysInYear = isLeapYear ? 366 : 365
+
+      return daysInYear
+    }
+  },
   methods: {
     load () {
       fetch('https://monitoring.izrk.zrc-sazu.si/index/status').then(r => r.json()).then(r => {
@@ -108,7 +159,17 @@ export default {
       }).catch(e => {
         this.$q.dialog({ title: 'Unable to load temperature data', message: e.message })
       })
+    },
+    containsDay (seismo, day) {
+      const days = this.status[seismo]?.days?.val.split(',').map(d => d * 1)
+      return days.includes(day)
     }
   }
 }
 </script>
+
+<style scoped lang="scss">
+.future {
+  color: #eee !important;;
+}
+</style>
