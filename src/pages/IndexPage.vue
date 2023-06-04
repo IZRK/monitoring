@@ -62,6 +62,31 @@
       </div>
     </div>
     <div class="text-h4 kreon q-py-md">
+      Geonetwork instances
+    </div>
+    <div class="row q-col-gutter-md">
+      <div v-for="gn in conf.geonetwork" :key="gn" class="col-lg-4 col-12">
+        <q-card class="overflow-hidden">
+          <q-card-section class="bg-primary text-white">
+            <div class="row text-h6 ">
+              {{gn}}
+            </div>
+          </q-card-section>
+          <q-list v-for="(status, service) in status[gn]" :key="service">
+            <q-item :class="status?.val == 'OK' ? 'bg-positive' : 'bg-negative'">
+              <q-item-section class="overflow-hidden">
+                {{service}}
+                <span class="text-caption">{{json(status.raw).msg}}</span>
+              </q-item-section>
+              <q-icon :name="status.val == 'OK' ? 'check' : 'cancel'" v-if="status.val == 'OK'">
+                <q-tooltip>{{status.val}}</q-tooltip>
+              </q-icon>
+            </q-item>
+          </q-list>
+        </q-card>
+      </div>
+    </div>
+    <div class="text-h4 kreon q-py-md">
       Seismological stations
     </div>
     <div class="row q-col-gutter-md">
@@ -143,6 +168,9 @@ export default {
     }
   },
   methods: {
+    json (j) {
+      return JSON.parse(j)
+    },
     load () {
       fetch('https://monitoring.izrk.zrc-sazu.si/index/status').then(r => r.json()).then(r => {
         this.status = r
