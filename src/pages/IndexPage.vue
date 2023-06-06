@@ -99,6 +99,9 @@
               <q-icon :name="status[seismo]?.seismo?.val == 'up' ? 'check' : 'cancel'" />
             </div>
           </q-card-section>
+          <q-card-section :class="['pre', status.seizmoloska_izrk[`seizmoloska${seismo}.service`]?.val == 'active' ? 'bg-positive' : 'bg-negative']">
+            {{status.seizmoloska_izrk[`seizmoloska${seismo}.service`]?.raw}}
+          </q-card-section>
           <q-card-section style="letter-spacing: -3px;font-size:20px">
             <span v-for="day in daysInYear" :key="day" :class="{future: day > dayOfYear, 'text-positive': containsDay(seismo, day), 'text-negative': !containsDay(seismo, day)}">■ </span>
           </q-card-section>
@@ -137,8 +140,8 @@ export default {
         type: 'datetime'
       },
       yaxis: {
-        max: 40,
-        min: 0
+        max: 30,
+        min: 15
       }
     }
   }),
@@ -199,5 +202,9 @@ export default {
 <style scoped lang="scss">
 .future {
   color: #eee !important;;
+}
+.pre {
+  white-space: pre-wrap;
+  font-size: 10px
 }
 </style>
