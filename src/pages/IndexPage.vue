@@ -75,7 +75,7 @@
             </div>
           </q-card-section>
           <q-card-section style="letter-spacing: -3px;font-size:20px">
-            <span v-for="day in daysInYear" :key="day" :class="{future: day > dayOfYear, 'text-positive': containsDay(seismo, day), 'text-negative': !containsDay(seismo, day)}">■ </span>
+            <span v-for="day in daysInYear" :key="day" :class="{future: day > dayOfYear, 'text-positive': containsDay(seismo, day), 'text-negative': !containsDay(seismo, day)}">■ <q-tooltip>{{date(day)}} ({{day}})</q-tooltip></span>
           </q-card-section>
         </q-card>
       </div>
@@ -97,6 +97,7 @@
 </template>
 
 <script>
+import { addDays, format } from 'date-fns'
 export default {
   name: 'IndexPage',
   data: () => ({
@@ -143,6 +144,11 @@ export default {
     }
   },
   methods: {
+    date (day) {
+      let date = new Date(new Date().getFullYear(), 0, 0)
+      date = addDays(date, day)
+      return format(date, 'yyyy-MM-dd')
+    },
     load () {
       fetch('https://monitoring.izrk.zrc-sazu.si/index/status').then(r => r.json()).then(r => {
         this.status = r
