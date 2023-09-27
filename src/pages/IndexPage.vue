@@ -62,6 +62,31 @@
       </div>
     </div>
     <div class="text-h4 kreon q-py-md">
+      Geonetwork instances
+    </div>
+    <div class="row q-col-gutter-md">
+      <div v-for="gn in conf.geonetwork" :key="gn" class="col-lg-4 col-12">
+        <q-card class="overflow-hidden">
+          <q-card-section class="bg-primary text-white">
+            <div class="row text-h6 ">
+              {{gn}}
+            </div>
+          </q-card-section>
+          <q-list v-for="(status, service) in status[gn]" :key="service">
+            <q-item :class="status?.val == 'OK' ? 'bg-positive' : 'bg-negative'">
+              <q-item-section class="overflow-hidden">
+                {{service}}
+                <span class="text-caption">{{json(status.raw).msg}}</span>
+              </q-item-section>
+              <q-icon :name="status.val == 'OK' ? 'check' : 'cancel'" v-if="status.val == 'OK'">
+                <q-tooltip>{{status.val}}</q-tooltip>
+              </q-icon>
+            </q-item>
+          </q-list>
+        </q-card>
+      </div>
+    </div>
+    <div class="text-h4 kreon q-py-md">
       Seismological stations
     </div>
     <div class="row q-col-gutter-md">
@@ -73,6 +98,9 @@
               <q-space />
               <q-icon :name="status[seismo]?.seismo?.val == 'up' ? 'check' : 'cancel'" />
             </div>
+          </q-card-section>
+          <q-card-section :class="['pre', status.seizmoloska_izrk[`seizmoloska${seismo}.service`]?.val == 'active' ? 'bg-positive' : 'bg-negative']">
+            {{status.seizmoloska_izrk[`seizmoloska${seismo}.service`]?.raw}}
           </q-card-section>
           <q-card-section style="letter-spacing: -3px;font-size:20px">
             <span v-for="day in daysInYear" :key="day" :class="{future: day > dayOfYear, 'text-positive': containsDay(seismo, day), 'text-negative': !containsDay(seismo, day)}">■ <q-tooltip>{{date(day)}} ({{day}})</q-tooltip></span>
@@ -113,8 +141,8 @@ export default {
         type: 'datetime'
       },
       yaxis: {
-        max: 40,
-        min: 0
+        max: 30,
+        min: 15
       }
     }
   }),
@@ -144,6 +172,9 @@ export default {
     }
   },
   methods: {
+    json (j) {
+      return JSON.parse(j)
+    },
     date (day) {
       let date = new Date(new Date().getFullYear(), 0, 0)
       date = addDays(date, day)
@@ -177,5 +208,9 @@ export default {
 <style scoped lang="scss">
 .future {
   color: #eee !important;;
+}
+.pre {
+  white-space: pre-wrap;
+  font-size: 10px
 }
 </style>
