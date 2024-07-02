@@ -6,7 +6,7 @@
     <div class="row q-col-gutter-md">
       <div v-for="(srv, name) in conf.servers" :key="name" class="col-lg-4 col-12">
         <q-card class="overflow-hidden">
-          <q-card-section :class="status[srv.hostname]?.ping?.val == 'up' ? 'bg-primary text-white' : 'bg-negative'">
+          <q-card-section :class="status[srv.hostname]?.ping?.val == 'up' ?  (lag(status[srv.hostname]?.uptime?.ts) ? 'bg-warning' : 'bg-primary text-white') : 'bg-negative'">
             <div class="row text-h6 ">
               {{name}} ({{srv.hostname}})
               <q-space />
@@ -19,7 +19,7 @@
               Virtual machines
             </div>
             <q-list>
-              <q-item v-for="(virt, vm) in srv.virt" :key="vm" :class="status[virt.hostname]?.ping?.val == 'up' ? 'bg-positive' : 'bg-negative'">
+              <q-item v-for="(virt, vm) in srv.virt" :key="vm" :class="status[virt.hostname]?.ping?.val == 'up' ? (lag(status[vm]?.virt?.ts) ? 'bg-warning' : 'bg-positive') : 'bg-negative'">
                 <q-item-section class="overflow-hidden">{{vm}}</q-item-section>
                 <q-item-section avatar>
                   <q-icon name="flag_circle" v-if="status[vm]?.autostart?.val == 'enable'">
@@ -174,6 +174,13 @@ export default {
   methods: {
     json (j) {
       return JSON.parse(j)
+    },
+    lag (ts) {
+      const oneHourInMilliseconds = 60 * 60 * 1000
+      const givenTimestamp = new Date(ts)
+      const currentTime = new Date()
+
+      return (currentTime - givenTimestamp) > oneHourInMilliseconds
     },
     date (day) {
       let date = new Date(new Date().getFullYear(), 0, 0)
