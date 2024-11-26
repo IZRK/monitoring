@@ -99,8 +99,8 @@
               <q-icon :name="status[seismo]?.seismo?.val == 'up' ? 'check' : 'cancel'" />
             </div>
           </q-card-section>
-          <q-card-section :class="['pre', status.seizmoloska_izrk[`seizmoloska${seismo}.service`]?.val == 'active' ? 'bg-positive' : 'bg-negative']">
-            {{status.seizmoloska_izrk[`seizmoloska${seismo}.service`]?.raw}}
+          <q-card-section :class="['pre', status.seizmoloska_izrk[`seismo${seismo}.service`]?.val == 'active' ? 'bg-positive' : 'bg-negative']">
+            {{status.seizmoloska_izrk[`seismo${seismo}.service`]?.raw}}
           </q-card-section>
           <q-card-section style="letter-spacing: -3px;font-size:20px">
             <span v-for="day in daysInYear" :key="day" :class="{future: day > dayOfYear, 'text-positive': containsDay(seismo, day), 'text-negative': !containsDay(seismo, day)}">■ <q-tooltip>{{date(day)}} ({{day}})</q-tooltip></span>
