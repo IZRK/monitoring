@@ -1,16 +1,87 @@
-@import url('https://fonts.googleapis.com/css2?family=Open+Sans&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Kreon:wght@500;700&family=Open+Sans&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Share+Tech+Mono&display=swap');
 
-body, html {
-  font-family: 'Open Sans', sans-serif;
+:root {
+  color-scheme: dark;
+  --console-bg: #030806;
+  --console-panel: #08130f;
+  --console-text: #d6ffe7;
+  --console-muted: #7cc7a2;
+  --console-accent: #67ffb3;
+  --console-danger: #ff5f5f;
+}
+
+html,
+body,
+#q-app {
+  min-height: 100%;
+  background: var(--console-bg);
+}
+
+html,
+body {
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--console-text);
+}
+
+body {
+  position: relative;
+  margin: 0;
+  background:
+    radial-gradient(circle at top, rgba(103, 255, 179, 0.07), transparent 28%),
+    linear-gradient(180deg, #07110d 0%, #030806 38%, #010302 100%);
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::before {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0.015)),
+    repeating-linear-gradient(
+      180deg,
+      rgba(103, 255, 179, 0.055) 0,
+      rgba(103, 255, 179, 0.055) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+  opacity: 0.34;
+}
+
+body::after {
+  background: radial-gradient(circle at center, transparent 40%, rgba(0, 0, 0, 0.42) 100%);
+}
+
+.q-layout,
+.q-page-container,
+.q-page {
+  position: relative;
+  z-index: 1;
+  background: transparent;
 }
 
 .kreon {
-  font-family: 'Kreon', serif;
+  font-family: 'Orbitron', monospace;
 }
 
 .logo {
-  width: 32px;
-  height: 32px;
-  margin-right: 10px;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 0 12px rgba(103, 255, 179, 0.25));
+}
+
+.q-tooltip {
+  border: 1px solid rgba(103, 255, 179, 0.18);
+  border-radius: 0;
+  background: rgba(6, 16, 12, 0.96) !important;
+  color: var(--console-text) !important;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.04rem;
 }
