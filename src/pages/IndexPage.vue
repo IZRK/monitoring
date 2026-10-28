@@ -1840,6 +1840,7 @@ export default {
           })
         }
       })
+      if (results.every(result => result.status === 'fulfilled')) this.errorDialog?.hide()
       return true
     }
   }
@@ -1976,6 +1977,7 @@ export default {
 
 .xclarity-grid--wide > .xclarity-card {
   min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .raid-array {
@@ -3215,6 +3217,45 @@ a.metric-tile:hover {
 @media (max-width: 768px) {
   .attention-list {
     grid-template-columns: 1fr;
+  }
+
+  /* Phone: each disk becomes a small block (bay | status, type | capacity, model | serial); manufacturer and notes are hidden. */
+  .disk-table thead,
+  .disk-table td:nth-child(5),
+  .disk-table td:nth-child(8) {
+    display: none;
+  }
+
+  .disk-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid rgba(103, 255, 179, 0.1);
+  }
+
+  .disk-table td,
+  .disk-table .nowrap {
+    border: 0;
+    padding: 0.1rem 0.4rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .disk-table td:nth-child(even) {
+    text-align: right;
+  }
+
+  /* GeoNetwork: only the check name and OK/FAIL; the raw response text is in the tooltip. */
+  .stack-card__message {
+    display: none;
+  }
+
+  .stack-card__row > span,
+  .disk-node__title,
+  .disk-cluster__title,
+  .server-card__title {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 }
 .seismo-card__log summary {
