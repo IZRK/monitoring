@@ -71,6 +71,80 @@
         </div>
       </section>
 
+      <section class="panel panel--xclarity">
+        <div class="panel__chrome">
+          <div class="panel__lights">
+            <span />
+            <span />
+            <span />
+          </div>
+          <div class="panel__chrome-label">workspace://hardware/xclarity</div>
+        </div>
+        <div class="panel__header">
+          <div>
+            <div class="panel__eyebrow">Lenovo management plane</div>
+            <h2 class="panel__title">XClarity health summary</h2>
+          </div>
+          <div class="panel__badge">{{ summary.xclarityHealthy }}/{{ summary.xclarityTotal || 0 }} controllers green</div>
+        </div>
+
+        <div v-if="xclarityCards.length" class="xclarity-grid">
+          <article
+            v-for="controller in xclarityCards"
+            :key="controller.id"
+            class="xclarity-card"
+            :class="`xclarity-card--${controller.tone}`"
+          >
+            <div class="xclarity-card__header">
+              <div>
+                <div class="xclarity-card__title">{{ controller.name }}</div>
+                <div class="xclarity-card__meta">{{ controller.meta }}</div>
+              </div>
+              <div class="status-pill" :class="`status-pill--${controller.tone}`">
+                {{ controller.label }}
+                <q-tooltip>{{ controller.tooltip }}</q-tooltip>
+              </div>
+            </div>
+
+            <div v-if="controller.error" class="xclarity-card__error">{{ controller.error }}</div>
+
+            <div v-else class="xclarity-health">
+              <div
+                v-for="item in controller.health"
+                :key="`${controller.id}-${item.key}`"
+                class="xclarity-health__item"
+                :class="`xclarity-health__item--${item.tone}`"
+              >
+                <span>{{ item.label }}</span>
+                <strong>{{ item.health }}</strong>
+                <small>{{ item.detail || 'No detail' }}</small>
+              </div>
+            </div>
+
+            <div class="xclarity-card__footer">
+              <span>{{ controller.problemCount }} warning/critical event{{ controller.problemCount === 1 ? '' : 's' }}</span>
+              <span>{{ controller.ageLabel }}</span>
+            </div>
+
+            <div v-if="controller.events.length" class="xclarity-events">
+              <div
+                v-for="event in controller.events"
+                :key="`${controller.id}-${event.log}-${event.id || event.event_id || event.message}`"
+                class="xclarity-event"
+              >
+                <span>{{ event.severity }}</span>
+                <span>{{ event.created || event.event_id || event.log }}</span>
+                <strong>{{ event.message }}</strong>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div v-else class="xclarity-empty">
+          No XClarity status rows are stored yet. Run the XClarity checker once to populate the status table.
+        </div>
+      </section>
+
       <section class="panel panel--servers">
         <div class="panel__chrome">
           <div class="panel__lights">
@@ -454,6 +528,7 @@ export default {
   data: () => ({
     clockTimer: null,
     intv: null,
+    errorDialog: null,
     conf: null,
     status: null,
     temps: [],
@@ -547,6 +622,7 @@ export default {
   beforeUnmount () {
     clearInterval(this.intv)
     clearInterval(this.clockTimer)
+    this.errorDialog?.hide()
   },
 
   computed: {
@@ -671,6 +747,53 @@ export default {
       })
     },
 
+    xclarityCards () {
+      return Object.entries(this.status || {})
+        .filter(([, attrs]) => attrs?.xclarity)
+        .map(([id, attrs]) => {
+          const row = attrs.xclarity
+          const raw = this.parseJson(row?.raw) || {}
+          const controller = raw.controller || {}
+          const state = row?.val || 'unknown'
+          const error = raw.error || null
+          const health = (raw.health_summary || []).map(item => ({
+            ...item,
+            tone: this.xclarityHealthTone(item?.health)
+          }))
+          const events = raw.events || {}
+          const problems = Array.isArray(events.problems) ? events.problems : []
+          const problemCount = Number(events.problem_count ?? problems.length) || 0
+          const age = this.minutesSince(row?.ts || null)
+          const tone = error || state === 'error'
+            ? 'down'
+            : state === 'warning'
+              ? 'lag'
+              : state === 'ok'
+                ? 'up'
+                : 'lag'
+
+          return {
+            id,
+            name: controller.name || id,
+            url: controller.url || '',
+            systemName: controller.system_name || '',
+            model: controller.model || '',
+            serial: controller.serial || '',
+            meta: [controller.hostname, controller.host_ip, controller.url].filter(Boolean).join(' • '),
+            state,
+            tone,
+            label: tone === 'up' ? 'HEALTH OK' : tone === 'lag' ? 'ATTENTION' : 'FAULT',
+            tooltip: this.xclarityTooltip(id, row, raw, age),
+            ageLabel: age === null ? 'no timestamp' : `${this.formatAge(age)} old`,
+            error,
+            health,
+            events: problems.slice(0, 5),
+            problemCount
+          }
+        })
+        .sort((a, b) => a.id.localeCompare(b.id))
+    },
+
     diskGroups () {
       const groups = []
 
@@ -749,6 +872,9 @@ export default {
         diskTotal: 0,
         diskHealthy: 0,
         diskAlerts: 0,
+        xclarityTotal: 0,
+        xclarityHealthy: 0,
+        xclarityAlerts: 0,
         alertCount: 0,
         currentTemp: 'No data',
         maxTemp: 'No data',
@@ -789,7 +915,11 @@ export default {
         const diskTotal = diskNodes.reduce((sum, node) => sum + (node.disks || []).length, 0)
         const diskHealthy = diskNodes.reduce((sum, node) => sum + (node.disks || []).filter(disk => disk.ok).length, 0)
         const diskAlerts = diskTotal - diskHealthy
-        const alertCount = (totalServers - onlineServers) + hostTelemetryAlerts + (websiteTotal - websiteOnline) + (vmTotal - vmOnline) + vmTelemetryAlerts + geonetworkAlerts + seismoAlerts + diskAlerts
+        const xclarityCards = Array.isArray(this.xclarityCards) ? this.xclarityCards : []
+        const xclarityTotal = xclarityCards.length
+        const xclarityHealthy = xclarityCards.filter(card => card.tone === 'up').length
+        const xclarityAlerts = xclarityTotal - xclarityHealthy
+        const alertCount = (totalServers - onlineServers) + hostTelemetryAlerts + (websiteTotal - websiteOnline) + (vmTotal - vmOnline) + vmTelemetryAlerts + geonetworkAlerts + seismoAlerts + diskAlerts + xclarityAlerts
         const temperatures = (Array.isArray(this.temps) ? this.temps : [])
           .map(item => Number(item?.avgTemp))
           .filter(value => Number.isFinite(value))
@@ -807,6 +937,9 @@ export default {
           diskTotal,
           diskHealthy,
           diskAlerts,
+          xclarityTotal,
+          xclarityHealthy,
+          xclarityAlerts,
           alertCount,
           currentTemp,
           maxTemp,
@@ -827,6 +960,8 @@ export default {
         vmOnline: 0,
         diskTotal: 0,
         diskHealthy: 0,
+        xclarityTotal: 0,
+        xclarityHealthy: 0,
         alertCount: 0
       }
 
@@ -854,6 +989,12 @@ export default {
           value: `${summary.diskHealthy}/${summary.diskTotal || 0}`,
           meta: 'free-space sensors green',
           tone: summary.diskHealthy === summary.diskTotal ? 'up' : 'down'
+        },
+        {
+          label: 'XClarity',
+          value: `${summary.xclarityHealthy || 0}/${summary.xclarityTotal || 0}`,
+          meta: 'hardware controllers green',
+          tone: summary.xclarityHealthy === summary.xclarityTotal ? 'up' : 'down'
         },
         {
           label: 'Active anomalies',
@@ -1185,11 +1326,43 @@ export default {
         return 'No payload'
       }
 
-      try {
-        return JSON.parse(raw).msg || raw
-      } catch {
-        return raw
+      return this.parseJson(raw)?.msg || raw
+    },
+
+    parseJson (raw) {
+      if (!raw) {
+        return null
       }
+
+      try {
+        return JSON.parse(raw)
+      } catch {
+        return null
+      }
+    },
+
+    xclarityHealthTone (health) {
+      const normalized = String(health || '').toLowerCase()
+      if (['critical', 'error', 'fatal'].includes(normalized)) {
+        return 'down'
+      }
+      if (['warning', 'degraded', 'unknown'].includes(normalized)) {
+        return 'lag'
+      }
+      return 'up'
+    },
+
+    xclarityTooltip (id, row, raw, age) {
+      if (raw?.error) {
+        return `${id}: XClarity check failed. ${raw.error}`
+      }
+
+      const controller = raw?.controller || {}
+      const eventCount = raw?.events?.problem_count || 0
+      const ageText = age === null ? 'no timestamp' : `${this.formatAge(age)} old`
+      const system = controller.system_name || controller.hostname || id
+
+      return `${system}: ${row?.val || 'unknown'}; ${eventCount} warning/critical event${eventCount === 1 ? '' : 's'}; last check ${ageText}.`
     },
 
     parseStatusTimestamp (value) {
@@ -1356,10 +1529,20 @@ export default {
           return
         }
 
-        this.$q.dialog({
+        const dialogOptions = {
+          dark: true,
+          color: 'primary',
           title: endpoint.title,
           message: result.reason?.message || 'Unknown network error'
-        })
+        }
+
+        if (this.errorDialog) {
+          this.errorDialog.update(dialogOptions)
+        } else {
+          this.errorDialog = this.$q.dialog(dialogOptions).onDismiss(() => {
+            this.errorDialog = null
+          })
+        }
       })
     }
   }
@@ -1385,6 +1568,7 @@ export default {
   grid-template-areas:
     'overview overview overview overview overview overview overview overview thermal thermal thermal thermal'
     'statusbar statusbar statusbar statusbar statusbar statusbar statusbar statusbar statusbar statusbar statusbar statusbar'
+    'xclarity xclarity xclarity xclarity xclarity xclarity xclarity xclarity xclarity xclarity xclarity xclarity'
     'servers servers servers servers servers servers servers storage storage storage storage storage'
     'network network network network network network network storage storage storage storage storage'
     'seismo seismo seismo seismo seismo seismo seismo seismo seismo seismo seismo seismo';
@@ -1429,6 +1613,10 @@ export default {
   grid-area: statusbar;
   min-height: 116px;
   padding: 0 1rem 0.8rem;
+}
+
+.panel--xclarity {
+  grid-area: xclarity;
 }
 
 .panel--servers {
@@ -1601,7 +1789,7 @@ export default {
 
 .hero-metrics {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 0.75rem;
   margin-top: 1.2rem;
 }
@@ -1629,6 +1817,10 @@ export default {
 
 .metric-tile:nth-child(5) {
   animation-delay: 2.4s;
+}
+
+.metric-tile:nth-child(6) {
+  animation-delay: 3s;
 }
 
 .metric-tile__value {
@@ -1713,7 +1905,8 @@ export default {
 }
 
 .server-grid,
-.seismo-grid {
+.seismo-grid,
+.xclarity-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 0.8rem;
@@ -1723,6 +1916,7 @@ export default {
 .server-card,
 .stack-card,
 .seismo-card,
+.xclarity-card,
 .subpanel,
 .disk-cluster,
 .disk-node {
@@ -1735,6 +1929,7 @@ export default {
 .server-card,
 .stack-card,
 .seismo-card,
+.xclarity-card,
 .disk-cluster,
 .disk-node {
   padding: 0.9rem;
@@ -1743,7 +1938,8 @@ export default {
 .server-card__title,
 .disk-cluster__title,
 .disk-node__title,
-.seismo-card__title {
+.seismo-card__title,
+.xclarity-card__title {
   font-size: 1rem;
   color: #effff6;
 }
@@ -1751,10 +1947,104 @@ export default {
 .server-card__meta,
 .disk-cluster__meta,
 .disk-node__meta,
-.seismo-card__meta {
+.seismo-card__meta,
+.xclarity-card__meta {
   margin-top: 0.3rem;
   font-size: 0.78rem;
   color: rgba(196, 255, 224, 0.68);
+}
+
+.xclarity-card {
+  display: grid;
+  gap: 0.75rem;
+  background:
+    radial-gradient(circle at top right, rgba(103, 255, 179, 0.08), transparent 24%),
+    rgba(10, 16, 23, 0.9);
+}
+
+.xclarity-card__header,
+.xclarity-card__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.xclarity-card__footer {
+  color: rgba(196, 255, 224, 0.68);
+  font-size: 0.75rem;
+}
+
+.xclarity-card__error {
+  padding: 0.7rem;
+  border: 1px solid rgba(255, 95, 95, 0.28);
+  color: #ff9f9f;
+  background: rgba(28, 10, 10, 0.72);
+}
+
+.xclarity-health {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: 0.45rem;
+}
+
+.xclarity-health__item {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.55rem;
+  border: 1px solid rgba(103, 255, 179, 0.12);
+  background: rgba(7, 16, 12, 0.72);
+}
+
+.xclarity-health__item strong {
+  color: #effff6;
+}
+
+.xclarity-health__item small {
+  color: rgba(196, 255, 224, 0.62);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xclarity-health__item--lag {
+  border-color: rgba(255, 191, 71, 0.3);
+}
+
+.xclarity-health__item--down {
+  border-color: rgba(255, 95, 95, 0.3);
+}
+
+.xclarity-events {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.xclarity-event {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: baseline;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(103, 255, 179, 0.08);
+  color: rgba(196, 255, 224, 0.76);
+  font-size: 0.76rem;
+}
+
+.xclarity-event strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #effff6;
+}
+
+.xclarity-empty {
+  margin-top: 0.85rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(255, 191, 71, 0.2);
+  color: #ffcf73;
+  background: rgba(22, 16, 7, 0.66);
 }
 
 .server-card__uptime {
@@ -2085,6 +2375,7 @@ export default {
 
 .status-pill--up,
 .server-card--up,
+.xclarity-card--up,
 .disk-cluster--up,
 .seismo-card--up,
 .stack-card--up {
@@ -2093,6 +2384,7 @@ export default {
 
 .status-pill--lag,
 .server-card--lag,
+.xclarity-card--lag,
 .disk-cluster--lag {
   border-color: rgba(255, 191, 71, 0.32);
   color: #ffcf73;
@@ -2100,6 +2392,7 @@ export default {
 
 .status-pill--down,
 .server-card--down,
+.xclarity-card--down,
 .disk-cluster--down,
 .seismo-card--down,
 .stack-card--down {
@@ -2302,6 +2595,7 @@ export default {
   .panel--overview,
   .panel--statusbar,
   .panel--servers,
+  .panel--xclarity,
   .panel--storage,
   .panel--network,
   .panel--seismo,
