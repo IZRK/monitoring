@@ -19,16 +19,7 @@
             <path d="M47.1944 52.2535C44.2009 52.2535 41.7797 49.8323 41.7797 46.8389C41.7797 43.8454 44.2009 41.4242 47.1944 41.4242C50.1878 41.4242 52.609 43.8454 52.609 46.8389C52.62 49.8213 50.1878 52.2535 47.1944 52.2535ZM47.6896 27.6345C39.1164 32.0477 32.095 39.0361 27.6158 47.5762C32.051 55.6431 38.7973 62.2463 46.9633 66.5274C55.3053 62.1583 62.1726 55.335 66.6078 47.0259C62.3487 38.849 55.7455 32.0917 47.6896 27.6345Z" fill="white" />
             <path d="M47.1946 41.4133C44.2011 41.4133 41.78 43.8345 41.78 46.828C41.78 49.8214 44.2011 52.2426 47.1946 52.2426C50.1881 52.2426 52.6092 49.8214 52.6092 46.828C52.6202 43.8345 50.1881 41.4133 47.1946 41.4133Z" fill="#002D59" />
           </svg>
-          <div>
-            <div class="command-bar__eyebrow">IZRK MONITORING GRID</div>
-            <div class="command-bar__title">Operations Command Interface</div>
-          </div>
-        </div>
-
-        <div class="command-bar__meta">
-          <span>RPI NODE</span>
-          <span>MODE SURVEILLANCE</span>
-          <span>CLEARANCE INTERNAL</span>
+          <div class="command-bar__title">IZRK Monitoring</div>
         </div>
       </q-toolbar>
     </q-header>
@@ -57,7 +48,7 @@ export default defineComponent({
 }
 
 .main-layout__container {
-  padding-top: 84px;
+  padding-top: 64px;
 }
 
 .command-bar {
@@ -73,7 +64,7 @@ export default defineComponent({
   gap: 1rem;
   max-width: 1780px;
   margin: 0 auto;
-  padding: 1rem 1.5rem;
+  padding: 0.7rem 1.5rem;
 }
 
 .command-bar__brand {
@@ -83,18 +74,10 @@ export default defineComponent({
   min-width: 0;
 }
 
-.command-bar__eyebrow {
-  font-size: 0.7rem;
-  letter-spacing: 0.28rem;
-  color: rgba(176, 205, 255, 0.72);
-  text-transform: uppercase;
-}
-
 .command-bar__title {
   display: flex;
   align-items: center;
-  margin-top: 0.35rem;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: 0.16rem;
   text-transform: uppercase;
@@ -102,37 +85,14 @@ export default defineComponent({
   text-shadow: 0 0 20px rgba(151, 191, 255, 0.15);
 }
 
-.command-bar__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.65rem;
-}
-
-.command-bar__meta span {
-  padding: 0.45rem 0.75rem;
-  border: 1px solid rgba(151, 191, 255, 0.14);
-  border-radius: 0;
-  font-size: 0.72rem;
-  letter-spacing: 0.14rem;
-  text-transform: uppercase;
-  color: rgba(214, 228, 255, 0.8);
-  background: rgba(16, 24, 34, 0.75);
-}
-
 @media (max-width: 768px) {
   .main-layout__container {
-    padding-top: 84px;
+    padding-top: 64px;
   }
 
   .command-bar__toolbar {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .command-bar__meta {
-    display: none;
   }
 
   .command-bar__title {

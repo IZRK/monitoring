@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Share+Tech+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@500;700;800&family=Share+Tech+Mono&display=swap');
 
 :root {
   color-scheme: dark;
@@ -19,7 +19,9 @@ body,
 
 html,
 body {
-  font-family: 'Share Tech Mono', monospace;
+  /* Readable console mono for text; emoji fonts so status icons render everywhere. */
+  font-family: 'JetBrains Mono', 'Share Tech Mono', monospace, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  font-size: 15px;
   color: var(--console-text);
 }
 
@@ -81,7 +83,7 @@ body::after {
   border-radius: 0;
   background: rgba(6, 16, 12, 0.96) !important;
   color: var(--console-text) !important;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 0.72rem;
+  font-family: 'JetBrains Mono', 'Share Tech Mono', monospace, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  font-size: 0.8rem;
   letter-spacing: 0.04rem;
 }

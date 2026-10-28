@@ -1,96 +1,99 @@
 <template>
   <q-page v-if="conf && status" class="console-page">
     <div class="console-frame">
-      <section class="panel hero-panel panel--overview">
-        <div class="panel__chrome">
-          <div class="panel__lights">
-            <span />
-            <span />
-            <span />
+      <section id="attention" class="panel panel--attention">
+        <div class="panel__header">
+          <h2 class="panel__title"><q-icon name="notifications_active" /> Needs attention</h2>
+          <div class="panel__badge">
+            <span v-if="attentionCounts.critical" class="text-critical">🚨 {{ attentionCounts.critical }} critical</span>
+            <span v-if="attentionCounts.warning" class="text-warning">⚠️ {{ attentionCounts.warning }} warning{{ attentionCounts.warning === 1 ? '' : 's' }}</span>
+            <span>updated {{ lastUpdateLabel }}</span>
           </div>
-          <div class="panel__chrome-label">workspace://overview</div>
         </div>
-        <div class="hero-panel__mesh" />
-        <div class="hero-panel__content">
-          <div class="hero-panel__eyebrow">
-            CENTRAL WATCH // LIVE TELEMETRY // {{ currentTimeLabel }}
-          </div>
-          <div class="hero-panel__headline">
-            <div>
-              <div class="hero-panel__title">IZRK CONTROL PANEL</div>
-              <div class="hero-panel__subtitle">
-                Full-spectrum infrastructure surveillance with persistent signal tracing,
-                thermal telemetry, and system heartbeat auditing.
-              </div>
-            </div>
-            <div class="hero-panel__terminal">
-              <span>&gt; awaiting anomaly injection</span>
-              <span class="cursor" />
-            </div>
-          </div>
-
-          <div class="hero-metrics">
-            <article
-              v-for="metric in headlineMetrics"
-              :key="metric.label"
-              class="metric-tile"
-              :class="`metric-tile--${metric.tone}`"
+        <div v-if="!attentionGroups.length" class="all-clear">✅ Everything is OK. No problems on any server, disk system, website or station.</div>
+        <div v-else class="attention-list">
+          <div v-for="group in attentionGroups" :key="group.system" class="attention-group" :class="`attention-group--${group.severity}`">
+            <div class="attention-group__title">{{ group.severity === 'critical' ? '🚨' : '⚠️' }} {{ group.system }}</div>
+            <a
+              v-for="(item, index) in group.items"
+              :key="`${group.system}-${index}`"
+              :href="`#${item.section}`"
+              class="attention-item"
+              :class="`attention-item--${item.severity}`"
             >
-              <div class="metric-tile__label">{{ metric.label }}</div>
-              <div class="metric-tile__value">{{ metric.value }}</div>
-              <div class="metric-tile__meta">{{ metric.meta }}</div>
-            </article>
+              <q-icon :name="item.icon" size="1.15rem" />
+              <span>{{ item.message }}</span>
+            </a>
           </div>
         </div>
       </section>
 
-      <section class="panel ribbon-panel panel--statusbar">
-        <div class="panel__chrome">
-          <div class="panel__lights">
-            <span />
-            <span />
-            <span />
-          </div>
-          <div class="panel__chrome-label">workspace://statusbar</div>
-        </div>
-        <div class="ribbon-panel__item">
-          <span class="ribbon-panel__label">Last sync</span>
-          <span class="ribbon-panel__value">{{ lastUpdateLabel }}</span>
-        </div>
-        <div class="ribbon-panel__item">
-          <span class="ribbon-panel__label">Watchdogs</span>
-          <span class="ribbon-panel__value">{{ summary.onlineServers }}/{{ summary.totalServers }} hosts live</span>
-        </div>
-        <div class="ribbon-panel__item">
-          <span class="ribbon-panel__label">Thermals</span>
-          <span class="ribbon-panel__value">{{ summary.currentTemp }}</span>
-        </div>
-        <div class="ribbon-panel__item">
-          <span class="ribbon-panel__label">Anomalies</span>
-          <span class="ribbon-panel__value ribbon-panel__value--alert">{{ summary.alertCount }}</span>
-        </div>
-      </section>
+      <nav class="panel panel--metrics hero-metrics">
+        <a
+          v-for="metric in headlineMetrics"
+          :key="metric.label"
+          :href="`#${metric.section}`"
+          class="metric-tile"
+          :class="`metric-tile--${metric.tone}`"
+        >
+          <div class="metric-tile__label"><q-icon :name="metric.icon" size="1.15rem" /> {{ metric.label }}</div>
+          <div class="metric-tile__value">{{ metric.value }}</div>
+          <div class="metric-tile__meta">{{ metric.meta }}</div>
+        </a>
+      </nav>
 
-      <section class="panel panel--xclarity">
-        <div class="panel__chrome">
-          <div class="panel__lights">
-            <span />
-            <span />
-            <span />
-          </div>
-          <div class="panel__chrome-label">workspace://hardware/xclarity</div>
-        </div>
+      <section id="raid" class="panel panel--raid">
         <div class="panel__header">
           <div>
-            <div class="panel__eyebrow">Lenovo management plane</div>
-            <h2 class="panel__title">XClarity health summary</h2>
+            <h2 class="panel__title"><q-icon name="storage" /> Disks &amp; RAID</h2>
           </div>
-          <div class="panel__badge">{{ summary.xclarityHealthy }}/{{ summary.xclarityTotal || 0 }} controllers green</div>
+          <div class="panel__badge">{{ summary.storageHealthy }}/{{ summary.storageTotal }} hosts healthy</div>
+        </div>
+        <div class="xclarity-grid">
+          <article v-for="card in storageCards" :key="card.id" class="xclarity-card" :class="`xclarity-card--${card.tone}`">
+            <div class="xclarity-card__header">
+              <div>
+                <div class="xclarity-card__title">{{ card.hostname }}</div>
+                <div class="xclarity-card__meta">{{ card.source }} · {{ card.ageLabel }}</div>
+              </div>
+              <div class="status-pill" :class="`status-pill--${card.tone}`">{{ toneEmoji(card.tone) }} {{ card.label }}</div>
+            </div>
+            <div v-if="card.notice" class="xclarity-empty">{{ card.notice }}</div>
+            <div v-for="issue in card.issues" :key="`${issue.id}-${issue.message}`" class="storage-issue" :class="`storage-issue--${issue.severity}`">
+              {{ issue.severity === 'critical' ? '🚨' : '⚠️' }} {{ issue.message }}
+            </div>
+            <div v-for="error in card.errors" :key="error" class="storage-issue">{{ error }}</div>
+            <div v-for="volume in card.volumes" :key="volume.id" class="storage-volume" :class="`xclarity-health__item--${xclarityHealthTone(volume.health)}`">
+              <strong><q-icon name="storage" size="1rem" /> {{ volume.name }} · {{ volume.raid }}</strong>
+              <span>{{ volume.state }}</span>
+              <small>{{ volume.id }} · {{ storageSize(volume.size) }}</small>
+            </div>
+            <details v-if="card.drives.length" class="storage-disks">
+              <summary>{{ card.drives.length }} physical disk entries · {{ card.predictiveCount }} predictive warning{{ card.predictiveCount === 1 ? '' : 's' }}</summary>
+              <div v-for="disk in card.drives" :key="disk.id" class="storage-disk" :class="`xclarity-health__item--${xclarityHealthTone(disk.health)}`">
+                <strong>{{ toneEmoji(xclarityHealthTone(disk.health)) }} {{ disk.slot || disk.id }} · {{ disk.state }}</strong>
+                <span v-if="disk.predictive_failure" class="storage-predictive">PREDICTIVE FAILURE / SMART ALERT</span>
+                <span>{{ disk.model }} · {{ storageSize(disk.size) }}</span>
+                <small v-if="disk.serial">Serial: {{ disk.serial }}</small>
+                <small v-if="disk.temperature">Temperature: {{ disk.temperature }}</small>
+                <small v-if="disk.media_errors != null">Media errors: {{ disk.media_errors }} · Other errors: {{ disk.other_errors ?? 'unknown' }}</small>
+              </div>
+            </details>
+          </article>
+        </div>
+      </section>
+
+      <section id="hardware" class="panel panel--xclarity">
+        <div class="panel__header">
+          <div>
+            <h2 class="panel__title"><q-icon name="developer_board" /> Hardware</h2>
+          </div>
+          <div class="panel__badge">{{ summary.xclarityHealthy }}/{{ summary.xclarityTotal || 0 }} systems green</div>
         </div>
 
-        <div v-if="xclarityCards.length" class="xclarity-grid">
+        <div v-if="hardwareCards.length" class="xclarity-grid">
           <article
-            v-for="controller in xclarityCards"
+            v-for="controller in hardwareCards"
             :key="controller.id"
             class="xclarity-card"
             :class="`xclarity-card--${controller.tone}`"
@@ -101,7 +104,7 @@
                 <div class="xclarity-card__meta">{{ controller.meta }}</div>
               </div>
               <div class="status-pill" :class="`status-pill--${controller.tone}`">
-                {{ controller.label }}
+                {{ toneEmoji(controller.tone) }} {{ controller.label }}
                 <q-tooltip>{{ controller.tooltip }}</q-tooltip>
               </div>
             </div>
@@ -115,9 +118,9 @@
                 class="xclarity-health__item"
                 :class="`xclarity-health__item--${item.tone}`"
               >
-                <span>{{ item.label }}</span>
-                <strong>{{ item.health }}</strong>
-                <small>{{ item.detail || 'No detail' }}</small>
+                <span class="xclarity-health__label"><q-icon :name="hardwareIcon(item.key)" size="1.1rem" /> {{ item.label }}</span>
+                <strong>{{ toneEmoji(item.tone) }} {{ item.health }}</strong>
+                <small v-if="item.detail">{{ item.key === 'temperature' ? temperatureSummary(item.detail) : item.detail }}</small>
               </div>
             </div>
 
@@ -131,9 +134,12 @@
                 v-for="event in controller.events"
                 :key="`${controller.id}-${event.log}-${event.id || event.event_id || event.message}`"
                 class="xclarity-event"
+                :class="`xclarity-event--${String(event.severity).toLowerCase()}`"
               >
-                <span>{{ event.severity }}</span>
-                <span>{{ event.created || event.event_id || event.log }}</span>
+                <span class="xclarity-event__head">
+                  {{ event.severity === 'Critical' ? '🚨' : '⚠️' }} {{ event.severity }}
+                  <template v-if="event.created"> · {{ new Date(event.created).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}</template>
+                </span>
                 <strong>{{ event.message }}</strong>
               </div>
             </div>
@@ -141,23 +147,14 @@
         </div>
 
         <div v-else class="xclarity-empty">
-          No XClarity status rows are stored yet. Run the XClarity checker once to populate the status table.
+          No hardware status rows are stored yet. Run the XClarity and disk system checkers once to populate the status table.
         </div>
       </section>
 
-      <section class="panel panel--servers">
-        <div class="panel__chrome">
-          <div class="panel__lights">
-            <span />
-            <span />
-            <span />
-          </div>
-          <div class="panel__chrome-label">workspace://hosts/runtime-map</div>
-        </div>
+      <section id="servers" class="panel panel--servers">
         <div class="panel__header">
           <div>
-            <div class="panel__eyebrow">Host matrix</div>
-            <h2 class="panel__title">Primary server surveillance</h2>
+            <h2 class="panel__title"><q-icon name="dns" /> Servers, VMs &amp; websites</h2>
           </div>
           <div class="panel__badge">Active scan</div>
         </div>
@@ -176,11 +173,11 @@
               </div>
               <div class="server-card__status-stack">
                 <div class="status-pill" :class="`status-pill--${server.pingUp ? 'up' : 'down'}`">
-                  {{ server.pingUp ? 'UPLINK OK' : 'LINK LOST' }}
+                  {{ server.pingUp ? '✅ Online' : '🚨 No ping' }}
                   <q-tooltip>{{ server.statusTooltip }}</q-tooltip>
                 </div>
                 <div v-if="server.telemetryEnabled" class="status-pill" :class="`status-pill--${server.telemetry.tone}`">
-                  STATUS {{ server.telemetry.label }}
+                  {{ toneEmoji(server.telemetry.tone) }} Reporting {{ server.telemetry.label.toLowerCase() }}
                   <q-tooltip>{{ server.telemetry.tooltip }}</q-tooltip>
                 </div>
               </div>
@@ -247,19 +244,10 @@
         </div>
       </section>
 
-      <section class="panel panel--storage">
-        <div class="panel__chrome">
-          <div class="panel__lights">
-            <span />
-            <span />
-            <span />
-          </div>
-          <div class="panel__chrome-label">workspace://storage/topology</div>
-        </div>
+      <section id="space" class="panel panel--storage">
         <div class="panel__header">
           <div>
-            <div class="panel__eyebrow">Storage pressure</div>
-            <h2 class="panel__title">Disk free-space watch</h2>
+            <h2 class="panel__title"><q-icon name="pie_chart" /> Disk space</h2>
           </div>
           <div class="panel__badge">{{ summary.diskHealthy }}/{{ summary.diskTotal || 0 }} green</div>
         </div>
@@ -273,7 +261,6 @@
           >
             <div class="disk-cluster__header">
               <div>
-                <div class="disk-cluster__eyebrow">{{ group.kind }}</div>
                 <div class="disk-cluster__title">{{ group.name }}</div>
                 <div class="disk-cluster__meta">{{ group.hostname }} • {{ group.ip }}</div>
               </div>
@@ -319,7 +306,7 @@
             </div>
 
             <div v-if="group.children.length" class="disk-cluster__children">
-              <div class="disk-cluster__branch-label">Resident VMs</div>
+              <div class="disk-cluster__branch-label">Virtual machines</div>
 
               <article
                 v-for="node in group.children"
@@ -364,19 +351,10 @@
         </div>
       </section>
 
-      <section class="panel panel--network">
-        <div class="panel__chrome">
-          <div class="panel__lights">
-            <span />
-            <span />
-            <span />
-          </div>
-          <div class="panel__chrome-label">workspace://network/geonetwork</div>
-        </div>
+      <section id="geonetwork" class="panel panel--network">
         <div class="panel__header">
           <div>
-            <div class="panel__eyebrow">Service integrity</div>
-            <h2 class="panel__title">Geonetwork diagnostics</h2>
+            <h2 class="panel__title"><q-icon name="travel_explore" /> GeoNetwork</h2>
           </div>
           <div class="panel__badge">{{ geonetworkCards.length }} nodes</div>
         </div>
@@ -405,19 +383,10 @@
         </div>
       </section>
 
-      <section class="panel panel--seismo">
-        <div class="panel__chrome">
-          <div class="panel__lights">
-            <span />
-            <span />
-            <span />
-          </div>
-          <div class="panel__chrome-label">workspace://archive/seismology</div>
-        </div>
+      <section id="seismo" class="panel panel--seismo">
         <div class="panel__header">
           <div>
-            <div class="panel__eyebrow">Acquisition depth</div>
-            <h2 class="panel__title">Seismological station continuity</h2>
+            <h2 class="panel__title"><q-icon name="sensors" /> Seismological stations</h2>
           </div>
           <div class="panel__badge">Year {{ currentYear }}</div>
         </div>
@@ -435,15 +404,15 @@
                 <div class="seismo-card__meta">{{ station.folder }}</div>
               </div>
               <div class="status-pill" :class="`status-pill--${station.tone}`">
-                {{ station.online ? 'STREAMING' : 'OFFLINE' }}
+                {{ station.online ? '✅ Receiving data' : '🚨 No data' }}
                 <q-tooltip>{{ station.tooltip }}</q-tooltip>
               </div>
             </div>
 
-            <div class="seismo-card__service" :class="{ 'seismo-card__service--down': !station.serviceActive }">
-              {{ station.serviceRaw }}
-              <q-tooltip>{{ station.serviceTooltip }}</q-tooltip>
-            </div>
+            <details class="seismo-card__log">
+              <summary>{{ station.serviceActive ? '✅ Archiving service running' : '🚨 Archiving service not running' }} · service log</summary>
+              <div class="seismo-card__service" :class="{ 'seismo-card__service--down': !station.serviceActive }">{{ station.serviceRaw }}</div>
+            </details>
 
             <div class="timeline">
               <span
@@ -462,19 +431,10 @@
         </div>
       </section>
 
-      <section class="panel panel--thermal">
-        <div class="panel__chrome">
-          <div class="panel__lights">
-            <span />
-            <span />
-            <span />
-          </div>
-          <div class="panel__chrome-label">workspace://environment/thermals</div>
-        </div>
+      <section id="thermal" class="panel panel--thermal">
         <div class="panel__header">
           <div>
-            <div class="panel__eyebrow">Environmental watch</div>
-            <h2 class="panel__title">Server room thermals</h2>
+            <h2 class="panel__title"><q-icon name="thermostat" /> Server room</h2>
           </div>
           <div class="panel__badge">{{ summary.currentTemp }}</div>
         </div>
@@ -747,51 +707,70 @@ export default {
       })
     },
 
-    xclarityCards () {
-      return Object.entries(this.status || {})
-        .filter(([, attrs]) => attrs?.xclarity)
-        .map(([id, attrs]) => {
-          const row = attrs.xclarity
+    storageCards () {
+      const servers = Object.entries(this.conf?.servers || {})
+        .filter(([, server]) => server.xclarity || server.storcli)
+        .map(([id, server]) => {
+          const row = server.storcli ? this.status?.[server.hostname]?.storcli : this.status?.[id]?.xclarity
           const raw = this.parseJson(row?.raw) || {}
-          const controller = raw.controller || {}
-          const state = row?.val || 'unknown'
-          const error = raw.error || null
-          const health = (raw.health_summary || []).map(item => ({
-            ...item,
-            tone: this.xclarityHealthTone(item?.health)
-          }))
-          const events = raw.events || {}
-          const problems = Array.isArray(events.problems) ? events.problems : []
-          const problemCount = Number(events.problem_count ?? problems.length) || 0
-          const age = this.minutesSince(row?.ts || null)
-          const tone = error || state === 'error'
-            ? 'down'
-            : state === 'warning'
-              ? 'lag'
-              : state === 'ok'
-                ? 'up'
-                : 'lag'
+          return { id, hostname: server.hostname || id, source: server.storcli ? 'StorCLI' : 'XClarity / Redfish', row, raw, report: server.storcli ? raw : (raw.storage || {}) }
+        })
+      const sanSources = { ontap: 'NetApp ONTAP API', flashsystem: 'IBM Spectrum Virtualize API' }
+      const disksystems = Object.entries(this.conf?.san || {}).map(([id, system]) => {
+        const row = this.status?.[id]?.san
+        const raw = this.parseJson(row?.raw) || {}
+        return { id, hostname: system.name || id, source: sanSources[system.type] || system.type, row, raw, report: raw.storage || {} }
+      })
 
+      return [...servers, ...disksystems]
+        .map(({ id, hostname, source, row, raw, report }) => {
+          const age = this.minutesSince(row?.ts)
+          const stale = age === null || age > 120
+          const issues = Array.isArray(report.issues) ? report.issues : []
+          const drives = Array.isArray(report.drives) ? report.drives : []
+          const critical = !!report.critical
+          const state = report.state || 'unknown'
+          const tone = critical ? 'down' : stale || state !== 'ok' ? 'lag' : 'up'
           return {
             id,
-            name: controller.name || id,
-            url: controller.url || '',
-            systemName: controller.system_name || '',
-            model: controller.model || '',
-            serial: controller.serial || '',
-            meta: [controller.hostname, controller.host_ip, controller.url].filter(Boolean).join(' • '),
-            state,
+            hostname,
+            source,
             tone,
-            label: tone === 'up' ? 'HEALTH OK' : tone === 'lag' ? 'ATTENTION' : 'FAULT',
-            tooltip: this.xclarityTooltip(id, row, raw, age),
-            ageLabel: age === null ? 'no timestamp' : `${this.formatAge(age)} old`,
-            error,
-            health,
-            events: problems.slice(0, 5),
-            problemCount
+            label: critical ? 'RAID / DISK FAILURE' : stale ? 'NO FRESH DATA' : state === 'ok' ? 'STORAGE OK' : state === 'unknown' ? 'HEALTH UNAVAILABLE' : 'WARNING',
+            critical,
+            criticalMessages: issues.filter(issue => issue.severity === 'critical').map(issue => issue.message),
+            issues,
+            errors: Array.isArray(report.errors) ? report.errors : [],
+            volumes: Array.isArray(report.volumes) ? report.volumes : [],
+            drives,
+            predictiveCount: drives.filter(disk => disk.predictive_failure).length,
+            ageLabel: age === null ? 'no report yet' : `${this.formatAge(age)} old`,
+            notice: !row ? 'Waiting for the first hardware storage report.' : stale ? 'Storage telemetry is stale. Current disk and RAID health cannot be confirmed.' : raw.error || ''
           }
         })
+        .sort((a, b) => Number(b.critical) - Number(a.critical) || a.id.localeCompare(b.id))
+    },
+
+    criticalStorage () {
+      return this.storageCards.filter(card => card.critical)
+    },
+
+    xclarityCards () {
+      return Object.entries(this.conf?.servers || {})
+        .filter(([, server]) => server.xclarity)
+        .map(([id, server]) => this.hardwareCard(id, this.status?.[id]?.xclarity, server.hostname || id, 'XClarity'))
         .sort((a, b) => a.id.localeCompare(b.id))
+    },
+
+    sanCards () {
+      return Object.entries(this.conf?.san || {})
+        .map(([id, system]) => this.hardwareCard(id, this.status?.[id]?.san, system.name || id, 'disk system'))
+        .sort((a, b) => a.id.localeCompare(b.id))
+    },
+
+    hardwareCards () {
+      const order = { down: 0, lag: 1, idle: 1, up: 2 }
+      return [...this.xclarityCards, ...this.sanCards].sort((a, b) => (order[a.tone] ?? 1) - (order[b.tone] ?? 1) || a.name.localeCompare(b.name))
     },
 
     diskGroups () {
@@ -857,6 +836,75 @@ export default {
       return groups
     },
 
+    // Every current problem in one list, worst first, worded for a person rather than a log.
+    attentionItems () {
+      const items = []
+      const add = (severity, icon, system, message, section) => items.push({ severity, icon, system, message, section })
+
+      this.serverCards.forEach(server => {
+        const host = server.hostname || server.name
+        if (!server.pingUp) add('critical', 'power_off', host, 'Does not answer ping.', 'servers')
+        else if (server.telemetryEnabled && server.telemetry?.tone !== 'up') add('warning', 'sync_problem', host, 'Has stopped sending status updates.', 'servers')
+        server.websites.filter(site => !site.up).forEach(site => add('critical', 'language', host, `Website ${site.url} is not responding.`, 'servers'))
+        server.virtuals.forEach(vm => {
+          if (!vm.running) add('critical', 'layers', vm.name, `Virtual machine on ${host} is not running.`, 'servers')
+          else if (!vm.autostart) add('warning', 'layers', vm.name, `Virtual machine on ${host} will not start automatically after a reboot.`, 'servers')
+          else if (vm.telemetryEnabled && vm.telemetry?.tone !== 'up') add('warning', 'sync_problem', vm.name, 'Has stopped sending status updates.', 'servers')
+          vm.websites.filter(site => !site.up).forEach(site => add('critical', 'language', vm.name, `Website ${site.url} is not responding.`, 'servers'))
+        })
+      })
+
+      this.storageCards.forEach(card => {
+        card.issues.forEach(issue => add(issue.severity === 'critical' ? 'critical' : 'warning', 'storage', card.hostname, issue.message, 'raid'))
+        if (card.notice) add('warning', 'storage', card.hostname, card.notice, 'raid')
+      })
+
+      this.hardwareCards.forEach(card => {
+        if (card.error) add(card.tone === 'down' ? 'critical' : 'warning', 'report', card.name, card.error, 'hardware')
+        // Disk rows live under Disks & RAID; event-log rows are listed as their individual events below.
+        card.health
+          .filter(row => !['local_storage', 'others', 'health'].includes(row.key) && ['down', 'lag'].includes(row.tone))
+          .forEach(row => add(row.tone === 'down' ? 'critical' : 'warning', this.hardwareIcon(row.key), card.name, `${row.label}: ${row.detail || row.health}`, 'hardware'))
+        const raidReported = this.storageCards.some(storage => storage.hostname === card.name && storage.source === 'StorCLI' && storage.issues.length)
+        card.events
+          .filter(event => !(raidReported && /^The disk in slot/.test(event.message)))
+          .forEach(event => add(String(event.severity).toLowerCase() === 'critical' ? 'critical' : 'warning', 'receipt_long', card.name, event.message, 'hardware'))
+      })
+
+      this.diskNodes.forEach(node => {
+        node.disks.filter(disk => !disk.ok).forEach(disk => add(disk.tone === 'down' ? 'critical' : 'warning', 'pie_chart', node.hostname || node.name, `Filesystem ${disk.label} is ${disk.statusText} (${disk.detail || 'no detail'}).`, 'space'))
+      })
+
+      this.seismoCards.forEach(station => {
+        if (!station.online) add('critical', 'sensors', `Station ${station.name}`, 'Is not delivering new seismological data.', 'seismo')
+        if (!station.serviceActive) add('critical', 'sensors', `Station ${station.name}`, 'Its archiving service is not running.', 'seismo')
+      })
+
+      this.geonetworkCards.forEach(node => {
+        node.services.filter(service => !service.ok).forEach(service => add('critical', 'travel_explore', 'GeoNetwork', `${service.name} failed: ${service.message}`, 'geonetwork'))
+      })
+
+      return items.sort((a, b) => (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1))
+    },
+
+    attentionGroups () {
+      const groups = new Map()
+      this.attentionItems.forEach(item => {
+        if (!groups.has(item.system)) groups.set(item.system, { system: item.system, severity: item.severity, items: [] })
+        const group = groups.get(item.system)
+        group.items.push(item)
+        if (item.severity === 'critical') group.severity = 'critical'
+      })
+      return [...groups.values()].sort((a, b) => (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1))
+    },
+
+    attentionCounts () {
+      return {
+        critical: this.attentionItems.filter(item => item.severity === 'critical').length,
+        warning: this.attentionItems.filter(item => item.severity === 'warning').length
+      }
+    },
+
     diskNodes () {
       return this.diskGroups.flatMap(group => [group.hostNode, ...group.children].filter(Boolean))
     },
@@ -875,6 +923,8 @@ export default {
         xclarityTotal: 0,
         xclarityHealthy: 0,
         xclarityAlerts: 0,
+        storageTotal: 0,
+        storageHealthy: 0,
         alertCount: 0,
         currentTemp: 'No data',
         maxTemp: 'No data',
@@ -915,11 +965,13 @@ export default {
         const diskTotal = diskNodes.reduce((sum, node) => sum + (node.disks || []).length, 0)
         const diskHealthy = diskNodes.reduce((sum, node) => sum + (node.disks || []).filter(disk => disk.ok).length, 0)
         const diskAlerts = diskTotal - diskHealthy
-        const xclarityCards = Array.isArray(this.xclarityCards) ? this.xclarityCards : []
+        const xclarityCards = Array.isArray(this.hardwareCards) ? this.hardwareCards : []
         const xclarityTotal = xclarityCards.length
         const xclarityHealthy = xclarityCards.filter(card => card.tone === 'up').length
         const xclarityAlerts = xclarityTotal - xclarityHealthy
-        const alertCount = (totalServers - onlineServers) + hostTelemetryAlerts + (websiteTotal - websiteOnline) + (vmTotal - vmOnline) + vmTelemetryAlerts + geonetworkAlerts + seismoAlerts + diskAlerts + xclarityAlerts
+        const storageTotal = this.storageCards.length
+        const storageHealthy = this.storageCards.filter(card => card.tone === 'up').length
+        const alertCount = (totalServers - onlineServers) + hostTelemetryAlerts + (websiteTotal - websiteOnline) + (vmTotal - vmOnline) + vmTelemetryAlerts + geonetworkAlerts + seismoAlerts + diskAlerts + xclarityAlerts + storageTotal - storageHealthy
         const temperatures = (Array.isArray(this.temps) ? this.temps : [])
           .map(item => Number(item?.avgTemp))
           .filter(value => Number.isFinite(value))
@@ -940,6 +992,8 @@ export default {
           xclarityTotal,
           xclarityHealthy,
           xclarityAlerts,
+          storageTotal,
+          storageHealthy,
           alertCount,
           currentTemp,
           maxTemp,
@@ -967,40 +1021,60 @@ export default {
 
       return [
         {
-          label: 'Host uplinks',
+          section: 'raid',
+          label: 'Disks / RAID',
+          icon: 'storage',
+          value: `${summary.storageHealthy || 0}/${summary.storageTotal || 0}`,
+          meta: 'servers & disk systems healthy',
+          tone: summary.storageHealthy === summary.storageTotal ? 'up' : 'down'
+        },
+        {
+          section: 'servers',
+          label: 'Servers',
+          icon: 'lan',
           value: `${summary.onlineServers}/${summary.totalServers}`,
-          meta: 'responsive nodes',
+          meta: 'servers answering ping',
           tone: summary.onlineServers === summary.totalServers ? 'up' : 'down'
         },
         {
-          label: 'Web probes',
+          section: 'servers',
+          label: 'Websites',
+          icon: 'language',
           value: `${summary.websiteOnline}/${summary.websiteTotal || 0}`,
-          meta: 'http sensors green',
+          meta: 'websites responding',
           tone: summary.websiteOnline === summary.websiteTotal ? 'up' : 'down'
         },
         {
+          section: 'servers',
           label: 'Virtual machines',
+          icon: 'layers',
           value: `${summary.vmOnline}/${summary.vmTotal || 0}`,
-          meta: 'runtime heartbeat',
+          meta: 'VMs running',
           tone: summary.vmOnline === summary.vmTotal ? 'up' : 'lag'
         },
         {
-          label: 'Disk watch',
+          section: 'space',
+          label: 'Disk space',
+          icon: 'pie_chart',
           value: `${summary.diskHealthy}/${summary.diskTotal || 0}`,
-          meta: 'free-space sensors green',
+          meta: 'filesystems below limit',
           tone: summary.diskHealthy === summary.diskTotal ? 'up' : 'down'
         },
         {
-          label: 'XClarity',
+          section: 'hardware',
+          label: 'Hardware',
+          icon: 'developer_board',
           value: `${summary.xclarityHealthy || 0}/${summary.xclarityTotal || 0}`,
-          meta: 'hardware controllers green',
+          meta: 'servers & disk systems healthy',
           tone: summary.xclarityHealthy === summary.xclarityTotal ? 'up' : 'down'
         },
         {
-          label: 'Active anomalies',
-          value: `${summary.alertCount}`,
-          meta: 'requires operator review',
-          tone: summary.alertCount === 0 ? 'up' : 'down'
+          section: 'thermal',
+          label: 'Server room',
+          icon: 'thermostat',
+          value: summary.currentTemp,
+          meta: `today ${summary.minTemp} – ${summary.maxTemp}`,
+          tone: 'up'
         }
       ]
     },
@@ -1343,18 +1417,103 @@ export default {
 
     xclarityHealthTone (health) {
       const normalized = String(health || '').toLowerCase()
-      if (['critical', 'error', 'fatal'].includes(normalized)) {
+      if (['critical', 'error', 'fatal', 'failed', 'offline'].includes(normalized)) {
         return 'down'
       }
-      if (['warning', 'degraded', 'unknown'].includes(normalized)) {
-        return 'lag'
+      if (['ok', 'enabled', 'online', 'optimal', 'onln', 'optl'].includes(normalized)) {
+        return 'up'
       }
-      return 'up'
+      return ['', 'unknown'].includes(normalized) ? 'idle' : 'lag'
     },
 
-    xclarityTooltip (id, row, raw, age) {
+    // "Ambient Temp: 24 C, CPU 1 Temp: 29 C, ..." -> "12 sensors, highest 44 C (DIMMG2_Temp)"
+    temperatureSummary (detail) {
+      const readings = [...String(detail).matchAll(/([^,:]+):\s*(-?\d+(?:\.\d+)?)\s*C/g)]
+        .map(match => ({ name: match[1].trim(), value: Number(match[2]) }))
+        .filter(reading => reading.value > 0)
+      if (readings.length < 3) return detail
+      const highest = readings.reduce((max, reading) => (reading.value > max.value ? reading : max))
+      return `${readings.length} sensors, highest ${highest.value} C (${highest.name})`
+    },
+
+    toneEmoji (tone) {
+      return { up: '✅', lag: '⚠️', down: '🚨' }[tone] || '❔'
+    },
+
+    hardwareIcon (key) {
+      return {
+        overall: 'dns',
+        cpu: 'developer_board',
+        memory: 'memory',
+        local_storage: 'storage',
+        pci: 'settings_input_component',
+        power_supply: 'power',
+        fan: 'air',
+        temperature: 'thermostat',
+        system_board: 'dashboard',
+        others: 'receipt_long',
+        controllers: 'hub',
+        shelf: 'inventory_2',
+        space: 'pie_chart',
+        luns: 'album',
+        iscsi: 'lan',
+        health: 'monitor_heart'
+      }[key] || 'circle'
+    },
+
+    storageSize (size) {
+      if (size == null) return 'size unavailable'
+      if (typeof size === 'string') return size
+      return `${(size / (1024 ** 4)).toFixed(2)} TiB`
+    },
+
+    hardwareCard (id, row, fallbackName, kind) {
+      const raw = this.parseJson(row?.raw) || {}
+      const controller = raw.controller || {}
+      const state = row?.val || 'unknown'
+      const error = raw.error || null
+      const health = (raw.health_summary || []).map(item => ({
+        ...item,
+        tone: this.xclarityHealthTone(item?.health)
+      }))
+      const events = raw.events || {}
+      const problems = Array.isArray(events.problems) ? events.problems : []
+      const problemCount = Number(events.problem_count ?? problems.length) || 0
+      const age = this.minutesSince(row?.ts || null)
+      const stale = age === null || age > 120
+      const tone = error || state === 'error'
+        ? 'down'
+        : state === 'warning' || stale
+          ? 'lag'
+          : state === 'ok'
+            ? 'up'
+            : 'lag'
+
+      return {
+        id,
+        name: controller.hostname || fallbackName,
+        url: controller.url || '',
+        systemName: controller.system_name || '',
+        model: controller.model || '',
+        serial: controller.serial || '',
+        meta: (kind === 'XClarity'
+          ? [controller.hostname, controller.host_ip, controller.url]
+          : [controller.url, controller.model, controller.version]).filter(Boolean).join(' • '),
+        state,
+        tone,
+        label: stale ? 'NO FRESH DATA' : tone === 'up' ? 'HEALTH OK' : tone === 'lag' ? 'ATTENTION' : 'FAULT',
+        tooltip: this.xclarityTooltip(id, row, raw, age, kind),
+        ageLabel: age === null ? 'no timestamp' : `${this.formatAge(age)} old`,
+        error: error || (!row ? `Waiting for the first ${kind} report.` : stale ? 'Hardware telemetry is stale.' : null),
+        health,
+        events: problems.slice(0, 5),
+        problemCount
+      }
+    },
+
+    xclarityTooltip (id, row, raw, age, kind = 'XClarity') {
       if (raw?.error) {
-        return `${id}: XClarity check failed. ${raw.error}`
+        return `${id}: ${kind} check failed. ${raw.error}`
       }
 
       const controller = raw?.controller || {}
@@ -1566,12 +1725,14 @@ export default {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-template-areas:
-    'overview overview overview overview overview overview overview overview thermal thermal thermal thermal'
-    'statusbar statusbar statusbar statusbar statusbar statusbar statusbar statusbar statusbar statusbar statusbar statusbar'
+    'attention attention attention attention attention attention attention attention attention attention attention attention'
+    'metrics metrics metrics metrics metrics metrics metrics metrics metrics metrics metrics metrics'
+    'raid raid raid raid raid raid raid raid raid raid raid raid'
     'xclarity xclarity xclarity xclarity xclarity xclarity xclarity xclarity xclarity xclarity xclarity xclarity'
-    'servers servers servers servers servers servers servers storage storage storage storage storage'
-    'network network network network network network network storage storage storage storage storage'
-    'seismo seismo seismo seismo seismo seismo seismo seismo seismo seismo seismo seismo';
+    'servers servers servers servers servers servers servers servers servers servers servers servers'
+    'storage storage storage storage storage storage storage storage storage storage storage storage'
+    'seismo seismo seismo seismo seismo seismo seismo seismo seismo seismo seismo seismo'
+    'network network network network network network network thermal thermal thermal thermal thermal';
   gap: 0.85rem;
   max-width: 1780px;
   margin: 0 auto;
@@ -1583,7 +1744,7 @@ export default {
   overflow: hidden;
   border: 1px solid rgba(103, 255, 179, 0.16);
   border-radius: 0;
-  padding: 2.9rem 1rem 1rem;
+  padding: 1rem;
   background:
     linear-gradient(180deg, rgba(10, 22, 18, 0.96), rgba(5, 11, 9, 0.97)),
     rgba(8, 13, 20, 0.94);
@@ -1615,8 +1776,73 @@ export default {
   padding: 0 1rem 0.8rem;
 }
 
+.panel--attention {
+  grid-area: attention;
+}
+
+.panel--metrics {
+  grid-area: metrics;
+  margin-top: 0;
+}
+
 .panel--xclarity {
   grid-area: xclarity;
+}
+
+.panel--raid {
+  grid-area: raid;
+}
+
+.raid-critical {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 2px solid #ff5f5f;
+  background: rgba(100, 15, 15, 0.45);
+  color: #ffd4d4;
+  overflow-wrap: anywhere;
+}
+
+.raid-critical strong {
+  display: block;
+  margin-bottom: 0.6rem;
+  font-size: 1.1rem;
+}
+
+.storage-issue {
+  color: #ffcf73;
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+}
+
+.storage-issue--critical {
+  color: #ff9f9f;
+  font-weight: bold;
+}
+
+.storage-volume,
+.storage-disk {
+  display: grid;
+  gap: 0.3rem;
+  border: 1px solid rgba(103, 255, 179, 0.16);
+  padding: 0.65rem;
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+}
+
+.storage-volume small,
+.storage-disk small {
+  color: rgba(196, 255, 224, 0.68);
+}
+
+.storage-disks summary {
+  cursor: pointer;
+  color: #d4ffe6;
+  font-size: 0.82rem;
+  margin-bottom: 0.5rem;
+}
+
+.storage-predictive {
+  color: #ffcf73;
 }
 
 .panel--servers {
@@ -1682,7 +1908,7 @@ export default {
 }
 
 .panel__chrome-label {
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   letter-spacing: 0.14rem;
   text-transform: uppercase;
   color: rgba(176, 255, 213, 0.7);
@@ -1700,18 +1926,12 @@ export default {
   gap: 0.8rem;
 }
 
-.panel__eyebrow,
 .panel__badge,
-.ribbon-panel__label,
 .metric-tile__label,
 .subpanel__label,
-.thermal-panel__label,
-.hero-panel__eyebrow,
-.boot-sequence__label {
-  font-size: 0.72rem;
-  letter-spacing: 0.22rem;
-  text-transform: uppercase;
-  color: rgba(176, 205, 255, 0.72);
+.thermal-panel__label {
+  font-size: 0.9rem;
+  color: rgba(196, 255, 224, 0.8);
 }
 
 .panel__title,
@@ -1789,7 +2009,7 @@ export default {
 
 .hero-metrics {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   gap: 0.75rem;
   margin-top: 1.2rem;
 }
@@ -1950,12 +2170,13 @@ export default {
 .seismo-card__meta,
 .xclarity-card__meta {
   margin-top: 0.3rem;
-  font-size: 0.78rem;
+  font-size: 0.84rem;
   color: rgba(196, 255, 224, 0.68);
 }
 
 .xclarity-card {
   display: grid;
+  align-content: start;
   gap: 0.75rem;
   background:
     radial-gradient(circle at top right, rgba(103, 255, 179, 0.08), transparent 24%),
@@ -1972,7 +2193,7 @@ export default {
 
 .xclarity-card__footer {
   color: rgba(196, 255, 224, 0.68);
-  font-size: 0.75rem;
+  font-size: 0.84rem;
 }
 
 .xclarity-card__error {
@@ -1990,29 +2211,53 @@ export default {
 
 .xclarity-health__item {
   display: grid;
+  align-content: start;
   gap: 0.2rem;
   padding: 0.55rem;
   border: 1px solid rgba(103, 255, 179, 0.12);
   background: rgba(7, 16, 12, 0.72);
 }
 
+.xclarity-health__label {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  color: rgba(196, 255, 224, 0.85);
+}
+
+.xclarity-health__label .q-icon {
+  color: rgba(103, 255, 179, 0.7);
+}
+
 .xclarity-health__item strong {
-  color: #effff6;
+  color: #67ffb3;
 }
 
 .xclarity-health__item small {
-  color: rgba(196, 255, 224, 0.62);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: rgba(196, 255, 224, 0.72);
+  overflow-wrap: anywhere;
 }
 
 .xclarity-health__item--lag {
-  border-color: rgba(255, 191, 71, 0.3);
+  border-color: rgba(255, 191, 71, 0.45);
+  background: rgba(40, 30, 8, 0.55);
+}
+
+.xclarity-health__item--lag strong {
+  color: #ffcf73;
 }
 
 .xclarity-health__item--down {
-  border-color: rgba(255, 95, 95, 0.3);
+  border-color: rgba(255, 95, 95, 0.55);
+  background: rgba(45, 10, 10, 0.6);
+}
+
+.xclarity-health__item--down strong {
+  color: #ff9f9f;
+}
+
+.xclarity-health__item--idle strong {
+  color: rgba(196, 255, 224, 0.6);
 }
 
 .xclarity-events {
@@ -2022,20 +2267,31 @@ export default {
 
 .xclarity-event {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr);
-  gap: 0.55rem;
-  align-items: baseline;
-  padding-top: 0.45rem;
-  border-top: 1px solid rgba(103, 255, 179, 0.08);
-  color: rgba(196, 255, 224, 0.76);
-  font-size: 0.76rem;
+  gap: 0.25rem;
+  padding: 0.5rem 0.65rem;
+  border-left: 3px solid #ffbf47;
+  background: rgba(255, 191, 71, 0.1);
+  font-size: 0.84rem;
+}
+
+.xclarity-event--critical {
+  border-left-color: #ff5f5f;
+  background: rgba(255, 95, 95, 0.14);
+}
+
+.xclarity-event__head {
+  color: #ffcf73;
+  font-weight: bold;
+}
+
+.xclarity-event--critical .xclarity-event__head {
+  color: #ff9f9f;
 }
 
 .xclarity-event strong {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  font-weight: normal;
   color: #effff6;
 }
 
@@ -2061,7 +2317,7 @@ export default {
 .server-card__telemetry {
   margin-top: 0.45rem;
   color: rgba(196, 255, 224, 0.68);
-  font-size: 0.76rem;
+  font-size: 0.84rem;
 }
 
 .server-card__alert {
@@ -2103,9 +2359,7 @@ export default {
 
 .disk-cluster__eyebrow,
 .disk-node__kind {
-  font-size: 0.7rem;
-  letter-spacing: 0.18rem;
-  text-transform: uppercase;
+  font-size: 0.8rem;
   color: rgba(118, 207, 163, 0.7);
 }
 
@@ -2129,7 +2383,7 @@ export default {
 
 .disk-cluster__host-meta {
   margin-top: 0.1rem;
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   color: rgba(196, 255, 224, 0.62);
 }
 
@@ -2156,9 +2410,7 @@ export default {
   position: relative;
   grid-column: 1 / -1;
   padding-left: 0.15rem;
-  font-size: 0.6rem;
-  letter-spacing: 0.16rem;
-  text-transform: uppercase;
+  font-size: 0.7rem;
   color: rgba(118, 207, 163, 0.66);
 }
 
@@ -2188,7 +2440,7 @@ export default {
   border: 1px solid rgba(103, 255, 179, 0.14);
   color: #effff6;
   font-family: 'Orbitron', monospace;
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   background: rgba(6, 14, 10, 0.82);
 }
 
@@ -2257,12 +2509,12 @@ export default {
 .disk-row__label,
 .disk-row__value {
   color: #effff6;
-  font-size: 0.72rem;
+  font-size: 0.82rem;
 }
 
 .disk-row__value {
   font-family: 'Orbitron', monospace;
-  font-size: 0.68rem;
+  font-size: 0.78rem;
 }
 
 .disk-row--warn .disk-row__value {
@@ -2272,14 +2524,14 @@ export default {
 .disk-row__meta {
   margin-top: 0.16rem;
   color: rgba(196, 255, 224, 0.68);
-  font-size: 0.64rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
 }
 
 .disk-row__bar {
-  height: 0.22rem;
+  height: 0.5rem;
+  border-radius: 2px;
+  overflow: hidden;
   margin-top: 0.32rem;
   background: rgba(255, 255, 255, 0.06);
 }
@@ -2335,9 +2587,7 @@ export default {
 .signal-list__name,
 .stack-card__message {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .signal-list__meta,
@@ -2386,8 +2636,7 @@ export default {
 .server-card--lag,
 .xclarity-card--lag,
 .disk-cluster--lag {
-  border-color: rgba(255, 191, 71, 0.32);
-  color: #ffcf73;
+  border-color: rgba(255, 191, 71, 0.45);
 }
 
 .status-pill--down,
@@ -2396,7 +2645,19 @@ export default {
 .disk-cluster--down,
 .seismo-card--down,
 .stack-card--down {
-  border-color: rgba(255, 95, 95, 0.3);
+  border-color: rgba(255, 95, 95, 0.5);
+}
+
+/* Only the pill itself carries the colour; card contents are coloured per item. */
+.status-pill--up {
+  color: #67ffb3;
+}
+
+.status-pill--lag {
+  color: #ffcf73;
+}
+
+.status-pill--down {
   color: #ff9f9f;
 }
 
@@ -2424,7 +2685,7 @@ export default {
   background: rgba(7, 16, 12, 0.86);
   color: #7cffc4;
   white-space: pre-wrap;
-  font-size: 0.54rem;
+  font-size: 0.64rem;
   line-height: 1.2;
 }
 
@@ -2478,7 +2739,7 @@ export default {
 .panel--storage .panel__badge,
 .panel--storage .status-pill {
   padding: 0.26rem 0.45rem;
-  font-size: 0.66rem;
+  font-size: 0.76rem;
 }
 
 :deep(.apexcharts-svg) {
@@ -2592,9 +2853,10 @@ export default {
     grid-template-areas: none;
   }
 
-  .panel--overview,
-  .panel--statusbar,
+  .panel--attention,
+  .panel--metrics,
   .panel--servers,
+  .panel--raid,
   .panel--xclarity,
   .panel--storage,
   .panel--network,
@@ -2603,9 +2865,6 @@ export default {
     grid-area: auto;
   }
 
-  .hero-metrics {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 768px) {
@@ -2641,10 +2900,6 @@ export default {
     border-bottom: 0;
   }
 
-  .hero-metrics {
-    grid-template-columns: 1fr;
-  }
-
   .disk-cluster__children {
     grid-template-columns: 1fr;
     margin-left: 0.65rem;
@@ -2665,8 +2920,112 @@ export default {
     grid-template-columns: 1fr;
   }
 
-  .hero-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.panel__title .q-icon {
+  margin-right: 0.35rem;
+  color: #67ffb3;
+}
+
+.panel__badge {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+
+.text-critical {
+  color: #ff9f9f;
+}
+
+.text-warning {
+  color: #ffcf73;
+}
+
+.all-clear {
+  margin-top: 0.8rem;
+  padding: 1rem;
+  border-left: 4px solid #67ffb3;
+  background: rgba(103, 255, 179, 0.08);
+  font-size: 1.05rem;
+  color: #c4ffe0;
+}
+
+.attention-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.8rem;
+}
+
+.attention-group {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  padding: 0.75rem 0.9rem;
+  border-left: 4px solid #ffbf47;
+  background: rgba(255, 191, 71, 0.08);
+}
+
+.attention-group--critical {
+  border-left-color: #ff5f5f;
+  background: rgba(255, 95, 95, 0.1);
+}
+
+.attention-group__title {
+  margin-bottom: 0.2rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #effff6;
+}
+
+.attention-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: start;
+  padding: 0.3rem 0.2rem;
+  color: #e6fff0;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.attention-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.attention-item .q-icon {
+  margin-top: 0.1rem;
+  color: #ffcf73;
+}
+
+.attention-item--critical .q-icon {
+  color: #ff9f9f;
+}
+
+a.metric-tile {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.metric-tile:hover {
+  border-color: rgba(103, 255, 179, 0.5);
+}
+
+.metric-tile__label {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .attention-list {
+    grid-template-columns: 1fr;
   }
+}
+.seismo-card__log summary {
+  cursor: pointer;
+  padding: 0.4rem 0;
+  color: rgba(196, 255, 224, 0.85);
 }
 </style>
