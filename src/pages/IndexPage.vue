@@ -49,7 +49,7 @@
           </div>
           <div class="panel__badge">{{ summary.storageHealthy }}/{{ summary.storageTotal }} hosts healthy</div>
         </div>
-        <div class="xclarity-grid">
+        <div class="xclarity-grid xclarity-grid--wide">
           <article v-for="card in storageCards" :key="card.id" class="xclarity-card" :class="`xclarity-card--${card.tone}`">
             <div class="xclarity-card__header">
               <div>
@@ -63,20 +63,30 @@
               {{ issue.severity === 'critical' ? '🚨' : '⚠️' }} {{ issue.message }}
             </div>
             <div v-for="error in card.errors" :key="error" class="storage-issue">{{ error }}</div>
-            <div v-for="volume in card.volumes" :key="volume.id" class="storage-volume" :class="`xclarity-health__item--${xclarityHealthTone(volume.health)}`">
-              <strong><q-icon name="storage" size="1rem" /> {{ volume.name }} · {{ volume.raid }}</strong>
-              <span>{{ volume.state }}</span>
-              <small>{{ volume.id }} · {{ storageSize(volume.size) }}</small>
-            </div>
-            <details v-if="card.drives.length" class="storage-disks">
-              <summary>{{ card.drives.length }} physical disk entries · {{ card.predictiveCount }} predictive warning{{ card.predictiveCount === 1 ? '' : 's' }}</summary>
-              <div v-for="disk in card.drives" :key="disk.id" class="storage-disk" :class="`xclarity-health__item--${xclarityHealthTone(disk.health)}`">
-                <strong>{{ toneEmoji(xclarityHealthTone(disk.health)) }} {{ disk.slot || disk.id }} · {{ disk.state }}</strong>
-                <span v-if="disk.predictive_failure" class="storage-predictive">PREDICTIVE FAILURE / SMART ALERT</span>
-                <span>{{ disk.model }} · {{ storageSize(disk.size) }}</span>
-                <small v-if="disk.serial">Serial: {{ disk.serial }}</small>
-                <small v-if="disk.temperature">Temperature: {{ disk.temperature }}</small>
-                <small v-if="disk.media_errors != null">Media errors: {{ disk.media_errors }} · Other errors: {{ disk.other_errors ?? 'unknown' }}</small>
+            <details v-for="group in card.arrays" :key="group.key" class="raid-array" :class="`raid-array--${group.tone}`" :open="group.tone !== 'up'">
+              <summary class="raid-array__title">
+                {{ toneEmoji(group.tone) }} <strong>{{ group.name }}</strong>
+                <span v-for="part in group.parts" :key="part"> · {{ part }}</span>
+              </summary>
+              <div class="disk-table-wrap">
+                <table class="disk-table">
+                  <thead>
+                    <tr><th>Bay</th><th>Status</th><th>Type</th><th>Capacity</th><th>Manufacturer</th><th>Model</th><th>Serial</th><th>Notes</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr v-if="!group.drives.length"><td colspan="8">The controller does not say which disks belong to this array.</td></tr>
+                    <tr v-for="disk in group.drives" :key="disk.id" :class="`disk-row--${xclarityHealthTone(disk.health)}`">
+                      <td class="nowrap">{{ disk.bay || disk.slot || disk.id }}</td>
+                      <td class="nowrap">{{ toneEmoji(xclarityHealthTone(disk.health)) }} {{ disk.status_text || disk.state }}</td>
+                      <td class="nowrap">{{ [disk.media, disk.interface, disk.rpm ? `${disk.rpm} rpm` : ''].filter(Boolean).join(' ') }}</td>
+                      <td class="nowrap">{{ disk.size ? storageSize(disk.size) : '' }}</td>
+                      <td>{{ disk.manufacturer }}</td>
+                      <td>{{ disk.model }}</td>
+                      <td>{{ disk.serial }}</td>
+                      <td>{{ diskNotes(disk).join(', ') }}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </details>
           </article>
@@ -477,9 +487,53 @@
       <q-spinner-grid color="primary" size="5em" />
     </div>
   </q-page>
+
+  <q-dialog v-model="loginOpen" persistent no-esc-dismiss no-backdrop-dismiss>
+    <q-card dark class="login-card">
+      <form @submit.prevent="submitPassword">
+        <q-card-section class="login-card__title">
+          <q-icon name="lock" size="1.4rem" /> Monitoring password
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          <q-input
+            v-model="passwordInput"
+            dark
+            outlined
+            autofocus
+            type="password"
+            label="Password"
+            autocomplete="current-password"
+            :error="!!loginError"
+            :error-message="loginError"
+          />
+          <q-checkbox v-model="rememberPassword" dark label="Remember me on this device" />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn type="submit" color="primary" unelevated label="Unlock" :loading="loggingIn" :disable="!passwordInput" />
+        </q-card-actions>
+      </form>
+    </q-card>
+  </q-dialog>
 </template>
 
 <script>
+const PASSWORD_KEY = 'monitoringPassword'
+
+function readStoredPassword () {
+  try {
+    return localStorage.getItem(PASSWORD_KEY) || ''
+  } catch (e) {
+    return ''
+  }
+}
+
+function storePassword (password) {
+  try {
+    if (password) localStorage.setItem(PASSWORD_KEY, password)
+    else localStorage.removeItem(PASSWORD_KEY)
+  } catch (e) {}
+}
+
 import { addDays, format } from 'date-fns'
 
 export default {
@@ -489,6 +543,12 @@ export default {
     clockTimer: null,
     intv: null,
     errorDialog: null,
+    password: readStoredPassword(),
+    passwordInput: '',
+    rememberPassword: true,
+    loginOpen: false,
+    loginError: '',
+    loggingIn: false,
     conf: null,
     status: null,
     temps: [],
@@ -713,7 +773,7 @@ export default {
         .map(([id, server]) => {
           const row = server.storcli ? this.status?.[server.hostname]?.storcli : this.status?.[id]?.xclarity
           const raw = this.parseJson(row?.raw) || {}
-          return { id, hostname: server.hostname || id, source: server.storcli ? 'StorCLI' : 'XClarity / Redfish', row, raw, report: server.storcli ? raw : (raw.storage || {}) }
+          return { id, hostname: server.hostname || id, source: server.storcli ? 'StorCLI' : 'BMC (XClarity / iLO)', row, raw, report: server.storcli ? raw : (raw.storage || {}) }
         })
       const sanSources = { ontap: 'NetApp ONTAP API', flashsystem: 'IBM Spectrum Virtualize API' }
       const disksystems = Object.entries(this.conf?.san || {}).map(([id, system]) => {
@@ -741,7 +801,7 @@ export default {
             criticalMessages: issues.filter(issue => issue.severity === 'critical').map(issue => issue.message),
             issues,
             errors: Array.isArray(report.errors) ? report.errors : [],
-            volumes: Array.isArray(report.volumes) ? report.volumes : [],
+            arrays: this.raidArrays(Array.isArray(report.volumes) ? report.volumes : [], drives),
             drives,
             predictiveCount: drives.filter(disk => disk.predictive_failure).length,
             ageLabel: age === null ? 'no report yet' : `${this.formatAge(age)} old`,
@@ -1462,9 +1522,59 @@ export default {
     },
 
     storageSize (size) {
-      if (size == null) return 'size unavailable'
-      if (typeof size === 'string') return size
-      return `${(size / (1024 ** 4)).toFixed(2)} TiB`
+      if (size == null || size === '') return 'size unavailable'
+      if (typeof size === 'string' && !/^\d+(\.\d+)?$/.test(size)) return size
+      let value = Number(size)
+      const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+      let unit = 0
+      for (; value >= 1000 && unit < units.length - 1; unit++) value /= 1000
+      return `${value >= 100 ? Math.round(value) : Math.round(value * 10) / 10} ${units[unit]}`
+    },
+
+    // One group per RAID array with its member disks, then disks outside any array (same as the e-mails).
+    raidArrays (volumes, drives) {
+      const bay = disk => String(disk.slot || disk.id || '')
+      const sortDisks = list => [...list].sort((a, b) => bay(a).localeCompare(bay(b), undefined, { numeric: true }))
+      const alertTone = { OK: 'up', Warning: 'lag', Critical: 'down' }
+      const groups = volumes.map(volume => {
+        const members = drives.filter(disk => disk.array === volume.id)
+        return {
+          key: volume.id,
+          name: `RAID array ${volume.name}`,
+          tone: alertTone[volume.alert] || this.xclarityHealthTone(volume.health),
+          parts: [
+            volume.raid,
+            volume.size ? `${this.storageSize(volume.size)} usable` : '',
+            volume.disk_count ? `${volume.disk_count} disks` : '',
+            volume.status_text || volume.state,
+            volume.redundancy || ''
+          ].filter(Boolean),
+          drives: sortDisks(members)
+        }
+      })
+      const others = drives.filter(disk => !groups.some(group => group.key === disk.array))
+      if (others.length) {
+        const worst = others.some(disk => this.xclarityHealthTone(disk.health) === 'down') ? 'down' : others.some(disk => this.xclarityHealthTone(disk.health) !== 'up') ? 'lag' : 'up'
+        groups.push({
+          key: 'other',
+          name: groups.length ? 'Disks not in a RAID array' : 'Disks',
+          tone: worst,
+          parts: [groups.length ? 'spares, unused, or failed and dropped out of the array' : '', `${others.length} disk${others.length === 1 ? '' : 's'}`].filter(Boolean),
+          drives: sortDisks(others)
+        })
+      }
+      return groups
+    },
+
+    diskNotes (disk) {
+      const notes = []
+      if (disk.predictive_failure) notes.push(`SMART predicts failure${disk.predictive_count ? ` (${disk.predictive_count}x)` : ''}`)
+      if (Number(disk.media_errors) > 0) notes.push(`${disk.media_errors} media errors`)
+      if (Number(disk.other_errors) > 0) notes.push(`${disk.other_errors} other errors`)
+      if (disk.wear != null && disk.wear !== '') notes.push(`${disk.wear}% of write endurance used`)
+      if (disk.hours) notes.push(`${Math.round(disk.hours / 876.6) / 10} years powered on`)
+      if (disk.temperature) notes.push(typeof disk.temperature === 'number' ? `${disk.temperature} C` : String(disk.temperature).replace(/\s*\(.*\)/, '').trim())
+      return notes
     },
 
     hardwareCard (id, row, fallbackName, kind) {
@@ -1658,7 +1768,24 @@ export default {
       return format(date, 'yyyy-MM-dd')
     },
 
-    async load () {
+    async submitPassword () {
+      this.password = this.passwordInput
+      this.loggingIn = true
+      const accepted = await this.load(true)
+      this.loggingIn = false
+      if (accepted) {
+        storePassword(this.rememberPassword ? this.password : '')
+        this.passwordInput = ''
+        this.loginError = ''
+        this.loginOpen = false
+      } else {
+        this.loginError = 'Wrong password'
+      }
+    },
+
+    // Returns false when the server rejected the password; the single login dialog then asks for it.
+    async load (fromLogin = false) {
+      if (this.loginOpen && !fromLogin) return false
       const endpoints = [
         {
           key: 'status',
@@ -1677,7 +1804,17 @@ export default {
         }
       ]
 
-      const results = await Promise.allSettled(endpoints.map(item => fetch(item.url).then(response => response.json())))
+      const headers = { Authorization: `Bearer ${this.password}` }
+      const results = await Promise.allSettled(endpoints.map(item => fetch(item.url, { headers }).then(response => {
+        if (response.status === 401) throw Object.assign(new Error('Password required'), { auth: true })
+        return response.json()
+      })))
+
+      if (results.some(result => result.reason?.auth)) {
+        this.errorDialog?.hide()
+        this.loginOpen = true
+        return false
+      }
 
       results.forEach((result, index) => {
         const endpoint = endpoints[index]
@@ -1703,12 +1840,26 @@ export default {
           })
         }
       })
+      return true
     }
   }
 }
 </script>
 
 <style scoped lang="scss">
+.login-card {
+  width: min(400px, calc(100vw - 32px));
+  background: #0b1712;
+  border: 1px solid rgba(103, 255, 179, 0.3);
+}
+
+.login-card__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
+}
+
 .console-page,
 .boot-page {
   min-height: calc(100vh - 84px);
@@ -1819,30 +1970,73 @@ export default {
   font-weight: bold;
 }
 
-.storage-volume,
-.storage-disk {
-  display: grid;
-  gap: 0.3rem;
+.xclarity-grid.xclarity-grid--wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.xclarity-grid--wide > .xclarity-card {
+  min-width: 0;
+}
+
+.raid-array {
   border: 1px solid rgba(103, 255, 179, 0.16);
-  padding: 0.65rem;
-  overflow-wrap: anywhere;
-  font-size: 0.82rem;
+  border-left-width: 4px;
 }
 
-.storage-volume small,
-.storage-disk small {
-  color: rgba(196, 255, 224, 0.68);
+.raid-array--down {
+  border-color: rgba(255, 107, 107, 0.7);
+  background: rgba(255, 80, 80, 0.07);
 }
 
-.storage-disks summary {
+.raid-array--lag {
+  border-color: rgba(255, 207, 115, 0.6);
+  background: rgba(255, 207, 115, 0.05);
+}
+
+.raid-array__title {
   cursor: pointer;
-  color: #d4ffe6;
-  font-size: 0.82rem;
-  margin-bottom: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
 }
 
-.storage-predictive {
-  color: #ffcf73;
+.disk-table-wrap {
+  overflow-x: auto;
+  padding: 0 0.5rem 0.5rem;
+}
+
+.disk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.disk-table th {
+  text-align: left;
+  font-weight: normal;
+  color: rgba(196, 255, 224, 0.68);
+  border-bottom: 1px solid rgba(103, 255, 179, 0.3);
+  padding: 0.35rem 0.5rem;
+}
+
+.disk-table td {
+  border-bottom: 1px solid rgba(103, 255, 179, 0.1);
+  padding: 0.35rem 0.5rem;
+  vertical-align: top;
+}
+
+.disk-table .nowrap {
+  white-space: nowrap;
+}
+
+.disk-row--down td {
+  background: rgba(255, 80, 80, 0.16);
+  color: #ffd2d2;
+}
+
+.disk-row--lag td {
+  background: rgba(255, 207, 115, 0.12);
+  color: #ffe9bf;
 }
 
 .panel--servers {
